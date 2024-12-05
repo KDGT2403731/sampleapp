@@ -23,7 +23,7 @@ from .consts import ITEM_PER_PAGE
 from .models import Book, Review
 
 def index_view(request):
-    object_list = Book.objects.order_by('-ad')
+    object_list = Book.objects.all
     ranking_list= Book.objects.annotate(avg_rating=Avg('review__rate')).order_by('-avg_rating')
     paginator = Paginator(ranking_list, ITEM_PER_PAGE)
     page_number = request.GET.get('page',1)
