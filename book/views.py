@@ -1,5 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db.models import Avg
 from django.db.models.base import Model as Model
 from django.db.models.query import QuerySet
@@ -15,11 +16,22 @@ from django.views.generic import(
     UpdateView,
     )
 
-from django.core.paginator import Paginator
+
 
 from .consts import ITEM_PER_PAGE
 
 from .models import Book, Review
+
+def index_view(request):
+    object_list = Book.objects.order_by('-ad')
+    ranking_list= Book.objects.annotate(avg_rating=Avg('review__rate')).order_by('-avg_rating')
+    paginator = Paginator(ranking_list, ITEM_PER_PAGE)
+    page_number = request.GET.get('page',1)
+    page_obj = paginator.page(page_number)
+    return render(request,
+                  'book/index.html',
+                  {'object_list': object_list, 'ranking_list': ranking_list, 'page_number': page_obj},
+                  )
 
 class ListBookView(LoginRequiredMixin, ListView):
     template_name = 'book/book_list.html'
@@ -40,6 +52,19 @@ class CreateBookView(LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
 
         return super().form_valid(form)
+    
+class DeleteBookView(LoginRequiredMixin, DeleteView):
+    template_name = 'book/book_confirm_delete.html'
+    model = Book
+    success_url = reverse_lazy('list-book')
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+
+        if obj.user != self.request.user:
+            raise PermissionDenied
+        
+        return obj
 
 class UpdateBookView(LoginRequiredMixin, UpdateView):
     model = Book
@@ -55,30 +80,6 @@ class UpdateBookView(LoginRequiredMixin, UpdateView):
     
     def get_success_url(self):
         return reverse('detail-book', kwargs={'pk': self.object.book.id})
-
-class DeleteBookView(LoginRequiredMixin, DeleteView):
-    template_name = 'book/book_confirm_delete.html'
-    model = Book
-    success_url = reverse_lazy('list-book')
-
-    def get_object(self, queryset=None):
-        obj = super().get_object(queryset)
-
-        if obj.user != self.request.user:
-            raise PermissionDenied
-        
-        return obj
-
-def index_view(request):
-    object_list = Book.objects.all()
-    ranking_list= Book.objects.annotate(avg_rating=Avg('review__rate')).order_by('-avg_rating')
-    paginator = Paginator(ranking_list, ITEM_PER_PAGE)
-    page_number = request.GET.get('page',1)
-    page_obj = paginator.page(page_number)
-    return render(request,
-                  'book/index.html',
-                  {'object_list': object_list, 'ranking_list': ranking_list, 'page_number':page_obj},
-                  )
 
 class CreateReviewView(LoginRequiredMixin, CreateView):
     model = Review
